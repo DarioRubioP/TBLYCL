@@ -10,7 +10,7 @@ public class DrinkThemAllManager : MonoBehaviour
     public GameObject panelEsteMinijuego; // El panel contenedor de TODO este minijuego actual
     public TextMeshProUGUI textoTiempo;
     public TextMeshProUGUI textoCervezas;
-    public GameObject manoTutorial;
+    //public GameObject manoTutorial;
 
     [Header("Paneles de Divergencia")]
     public GameObject panelDivergencia; // El panel general que dice "Cargando Divergencia"
@@ -22,10 +22,20 @@ public class DrinkThemAllManager : MonoBehaviour
 
     private int cervezasTomadas = 0;
     private bool juegoTerminado = false;
+    private float tiempoInicial; // Para respaldar el tiempo configurado en el Inspector
 
     void Awake()
     {
         Instancia = this;
+    }
+
+    void Start()
+    {
+        // Guardamos el tiempo original del inspector para poder reutilizarlo en los reinicios
+        tiempoInicial = tiempoRestante;
+
+        // Inicializamos los valores por primera vez
+        ReiniciarMinijuego();
     }
 
     void Update()
@@ -40,10 +50,10 @@ public class DrinkThemAllManager : MonoBehaviour
         textoTiempo.text = Mathf.CeilToInt(tiempoRestante).ToString();
 
         // Ocultar la mano tutorial tras 3 segundos o si el jugador hace clic
-        if (manoTutorial.activeSelf && (Input.GetMouseButtonDown(0) || tiempoRestante < 12f))
-        {
-            manoTutorial.SetActive(false);
-        }
+        //if (manoTutorial.activeSelf && (Input.GetMouseButtonDown(0) || tiempoRestante < (tiempoInicial - 3f)))
+        //{
+          //  manoTutorial.SetActive(false);
+        //}
 
         // Al agotarse el tiempo
         if (tiempoRestante <= 0)
@@ -52,44 +62,55 @@ public class DrinkThemAllManager : MonoBehaviour
         }
     }
 
+    // ----- MÉTODO DE REINICIO -----
+    public void ReiniciarMinijuego()
+    {
+        juegoTerminado = false;
+        cervezasTomadas = 0;
+        tiempoRestante = tiempoInicial;
+
+        // Restablecer textos e interfaz de conteo
+        if (textoTiempo != null) textoTiempo.text = Mathf.CeilToInt(tiempoRestante).ToString();
+        if (textoCervezas != null) textoCervezas.text = "Cervezas: 0";
+
+        // Reactivar la mano del tutorial para la próxima partida
+        //if (manoTutorial != null) manoTutorial.SetActive(true);
+    }
+
     public void TomarCerveza()
     {
         if (juegoTerminado) return;
 
         cervezasTomadas++;
         textoCervezas.text = "Cervezas: " + cervezasTomadas;
-        manoTutorial.SetActive(false); // Ocultar tutorial en cuanto interactúe
+        // manoTutorial.SetActive(false); // Ocultar tutorial en cuanto interactúe
     }
 
     void TerminarMinijuego()
     {
         juegoTerminado = true;
-
-        // Desactivamos el minijuego de la cerveza para limpiar la pantalla
         panelEsteMinijuego.SetActive(false);
 
-        // Activamos el letrero de "Cargando Divergencia"
+        // Guardamos el resultado final antes de reiniciar
+        int cervezasFinal = cervezasTomadas;
+
+        // Ahora sí, reiniciamos para la próxima partida
+        ReiniciarMinijuego();
+
         panelDivergencia.SetActive(true);
-
-        StartCoroutine(TransicionAMinijuego());
+        StartCoroutine(TransicionAMinijuego(cervezasFinal));
     }
+    //tartCoroutine(TransicionAMinijuego());
+    
 
-    IEnumerator TransicionAMinijuego()
-    {
-        // Esperamos 2 segundos mostrando el aviso "Cargando Divergencia..."
-        yield return new WaitForSeconds(2f);
+IEnumerator TransicionAMinijuego(int cervezas)
+{
+    yield return new WaitForSeconds(2f);
+    panelDivergencia.SetActive(false);
 
-        // Apagamos el letrero de carga
-        panelDivergencia.SetActive(false);
-
-        // Evaluamos las cervezas y encendemos el panel del Siguiente Minijuego
-        if (cervezasTomadas <= 3)
-        {
-            panelMinijuegoA.SetActive(true);
-        }
-        else
-        {
-            panelMinijuegoB.SetActive(true);
-        }
-    }
+    if (cervezas <= 3)
+        panelMinijuegoA.SetActive(true);
+    else
+        panelMinijuegoB.SetActive(true);
+}
 }

@@ -38,6 +38,7 @@ public class SacudirMaquinaManager : MonoBehaviour
 
     [Header("Tiempo")]
     public float tiempoRestante = 15f;
+    private float tiempoInicial; // <-- NUEVO: Para guardar el tiempo original
 
     public float velocidadSubida = 35f;
     public float velocidadBajada = 10f;
@@ -67,6 +68,7 @@ public class SacudirMaquinaManager : MonoBehaviour
     void Start()
     {
         posicionOriginalMaquina = maquina.anchoredPosition;
+        tiempoInicial = tiempoRestante; // <-- NUEVO: Guardamos el tiempo configurado
 
         CambiarEstadoJefe(false);
     }
@@ -132,6 +134,7 @@ public class SacudirMaquinaManager : MonoBehaviour
 
         StartCoroutine(SecuenciaFinal(panelDerrota));
     }
+
     void SacudirMaquina()
     {
         float offsetX = Mathf.Sin(Time.time * velocidadSacudida) * intensidadSacudida;
@@ -205,6 +208,8 @@ public class SacudirMaquinaManager : MonoBehaviour
 
         panelEsteMinijuego.SetActive(false);
 
+        ReiniciarValores(); // <-- NUEVO: Llamamos a la función para limpiar todo
+
         panelTransicion.SetActive(true);
 
         yield return new WaitForSeconds(3f);
@@ -212,5 +217,27 @@ public class SacudirMaquinaManager : MonoBehaviour
         panelTransicion.SetActive(false);
 
         panelResultado.SetActive(true);
+    }
+
+    // <-- NUEVO: Método que reinicia todas las variables a su estado de fábrica
+    void ReiniciarValores()
+    {
+        progreso = 0f;
+        tiempoRestante = tiempoInicial;
+        juegoTerminado = false;
+
+        maquina.anchoredPosition = posicionOriginalMaquina;
+
+        // Reiniciamos estado visual del jugador
+        playerNormal.SetActive(true);
+        playerSacudiendo.SetActive(false);
+
+        // Reiniciamos estado del jefe
+        CambiarEstadoJefe(false);
+
+        // Actualizamos los textos inmediatamente para que no haya parpadeos raros
+        textoProgreso.text = "Progreso: 0%";
+        textoTiempo.text = Mathf.CeilToInt(tiempoRestante).ToString();
+        textoResultado.text = "";
     }
 }

@@ -19,7 +19,7 @@ public class SheepCountManager : MonoBehaviour
     public RectTransform puntoInicio;         // Punto de spawn de la oveja (derecha)
     public RectTransform puntoFin;            // Punto de meta (izquierda)
     public RectTransform obstaculoRect;       // Imagen del obstáculo (valla)
-    public float alturaEvitarObstaculo = 40f; // Umbral de altura Y para esquivar (debe ser mayor que la parte alta del obstáculo)
+    public float alturaEvitarObstaculo = 40f; // Umbral de altura Y para esquivar
 
     [Header("Velocidad Oveja")]
     public float velocidadInicial = 100f;
@@ -31,13 +31,12 @@ public class SheepCountManager : MonoBehaviour
     public float duracionSaltoFinal = 1f;
     public AnimationCurve curvaSalto;
 
-
     [Header("Vidas")]
     public List<Image> imagenesVida;          // 3 imágenes de vida
 
     [Header("Pool Ovejas")]
     public RectTransform ovejaPrefab;         // Prefab de la imagen de oveja
-    public int poolSize = 3;                  // Tamaño del pool (solo una activa)
+    public int poolSize = 3;                  // Tamaño del pool
 
     [Header("Tiempo")]
     public float tiempoLimite = 30f;
@@ -53,10 +52,10 @@ public class SheepCountManager : MonoBehaviour
 
     // Estado
     public bool juegoTerminado { get; private set; }
+    private bool juegoIniciado = false;        // <-- NUEVA BANDERA
     private int vidas;
     private float tiempoActual;
     private Coroutine rutinaTemblor;
-
 
     void Awake()
     {
@@ -65,12 +64,7 @@ public class SheepCountManager : MonoBehaviour
 
     void Start()
     {
-        tiempoActual = tiempoLimite;
-        juegoTerminado = false;
-        vidas = imagenesVida.Count;
-        ActualizarUI();
-
-        // Crear pool de ovejas
+        // Solo creamos el pool de ovejas una vez, pero sin activar ninguna
         for (int i = 0; i < poolSize; i++)
         {
             RectTransform obj = Instantiate(ovejaPrefab, panelEsteMinijuego.transform);
@@ -78,13 +72,20 @@ public class SheepCountManager : MonoBehaviour
             obj.gameObject.SetActive(false);
             poolOvejas.Enqueue(oveja);
         }
-
-        // Spawnear la primera oveja
-        SpawnOveja();
+        // El juego se inicia cuando el panel se active (ver Update)
     }
 
     void Update()
     {
+        // Si el panel está activo y aún no se ha iniciado el juego → reiniciar e iniciar
+        if (panelEsteMinijuego.activeInHierarchy && !juegoIniciado)
+        {
+            ReiniciarMinijuego();
+            juegoIniciado = true;
+            return;
+        }
+
+        // Si el panel no está activo o el juego terminó → no hacer nada
         if (!panelEsteMinijuego.activeInHierarchy || juegoTerminado) return;
 
         // Input: clic para saltar
@@ -100,6 +101,49 @@ public class SheepCountManager : MonoBehaviour
 
         if (tiempoActual <= 0f)
             TerminarMinijuego(true);
+    }
+
+    // ----- NUEVO MÉTODO DE REINICIO -----
+    public void ReiniciarMinijuego()
+    {
+        // Restablecer estado
+        juegoTerminado = false;
+        vidas = imagenesVida.Count;
+        tiempoActual = tiempoLimite;
+        ActualizarUI();
+
+        // Detener cualquier temblor residual
+        if (rutinaTemblor != null)
+        {
+            StopCoroutine(rutinaTemblor);
+            rutinaTemblor = null;
+        }
+        // Asegurar la posición original del jugador (por si quedó desplazado por un temblor)
+        // (No tenemos almacenada la posición original, pero podemos asumir que es la actual antes de modificarse; 
+        //  como el temblor la restaura, no debería ser necesario. Por seguridad, podrías guardarla al inicio.)
+
+        // Limpiar todas las ovejas activas y rehacer el pool
+        Oveja[] ovejas = panelEsteMinijuego.GetComponentsInChildren<Oveja>(true);
+        foreach (Oveja o in ovejas)
+        {
+            o.gameObject.SetActive(false);
+        }
+        poolOvejas.Clear();
+        foreach (Oveja o in ovejas)
+        {
+            poolOvejas.Enqueue(o);
+        }
+        // Si faltan ovejas para alcanzar el tamaño del pool, instanciar más
+        while (poolOvejas.Count < poolSize)
+        {
+            RectTransform obj = Instantiate(ovejaPrefab, panelEsteMinijuego.transform);
+            Oveja oveja = obj.GetComponent<Oveja>();
+            obj.gameObject.SetActive(false);
+            poolOvejas.Enqueue(oveja);
+        }
+
+        // Spawnear la primera oveja
+        SpawnOveja();
     }
 
     public void SpawnOveja()
@@ -120,10 +164,8 @@ public class SheepCountManager : MonoBehaviour
         ovejaActual = nueva;
     }
 
-
     float GetVelocidadActual()
     {
-        // factor: 0 al inicio (tiempoLimite seg), 1 cuando quedan 3 seg
         float factor = (tiempoLimite - tiempoActual) / (tiempoLimite - 3f);
         factor = Mathf.Clamp01(factor);
         return Mathf.Lerp(velocidadInicial, velocidadFinal, factor);
@@ -151,7 +193,6 @@ public class SheepCountManager : MonoBehaviour
         vidas--;
         ActualizarUI();
 
-        // Activar temblor del jugador
         if (rutinaTemblor != null) StopCoroutine(rutinaTemblor);
         rutinaTemblor = StartCoroutine(TemblorJugador());
 
@@ -182,7 +223,6 @@ public class SheepCountManager : MonoBehaviour
         }
     }
 
-    // Detección de colisiones por rectángulos (AABB en coordenadas de mundo)
     public bool RectOverlaps(RectTransform a, RectTransform b)
     {
         Vector3[] cornersA = new Vector3[4];
@@ -199,6 +239,7 @@ public class SheepCountManager : MonoBehaviour
     void TerminarMinijuego(bool sobrevivio)
     {
         juegoTerminado = true;
+        juegoIniciado = false;              // <-- PERMITE REINICIAR
         StopAllCoroutines();
 
         panelEsteMinijuego.SetActive(false);

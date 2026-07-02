@@ -48,6 +48,7 @@ public class DrunkDrivingManager : MonoBehaviour
 
     // Pooling
     private Queue<RectTransform> poolObstaculos = new Queue<RectTransform>();
+    private List<RectTransform> todosLosObstaculos = new List<RectTransform>(); // Lista fija para rastrear y resetear el pool
     public int tamanoPool = 10;
 
     // Estado
@@ -55,6 +56,10 @@ public class DrunkDrivingManager : MonoBehaviour
     private bool juegoTerminado = false;
     private float tiempoActual;
     private Vector2 posicionInicialAuto;
+
+    // Input de botones UI
+    private bool botonIzquierdaPresionado = false;
+    private bool botonDerechaPresionado = false;
 
     void Awake()
     {
@@ -66,62 +71,109 @@ public class DrunkDrivingManager : MonoBehaviour
         // Guardamos posición inicial del coche
         posicionInicialAuto = autoRect.anchoredPosition;
 
-        // Inicializar vidas
-        vidas = imagenesVida.Count;
-        ActualizarUI();
-
-        // Crear pool de obstáculos
+        // Crear pool de obstáculos y guardar sus referencias estables
         for (int i = 0; i < tamanoPool; i++)
         {
             RectTransform obs = Instantiate(obstaculoPrefab, panelEsteMinijuego.transform);
             obs.gameObject.SetActive(false);
             poolObstaculos.Enqueue(obs);
+            todosLosObstaculos.Add(obs);
         }
 
-        // Comenzar a spawnear obstáculos
-        StartCoroutine(SpawnearObstaculos());
-
-        if (usarConduccionBorracha)
-            StartCoroutine(RutinaDerrape());
-
-        tiempoActual = tiempoLimite;
-
+        // Inicializamos los valores por primera vez
+        ReiniciarMinijuego();
     }
 
     void Update()
     {
         if (!panelEsteMinijuego.activeInHierarchy || juegoTerminado) return;
 
-        // Movimiento combinado: jugador + derrape
-        float horizontal = Input.GetAxis("Horizontal");
+        // Input combinado: teclado + botones UI
+        float inputTeclado = Input.GetAxis("Horizontal");
+        float inputBotones = 0f;
+        if (botonDerechaPresionado) inputBotones += 1f;
+        if (botonIzquierdaPresionado) inputBotones -= 1f;
+        float horizontal = Mathf.Clamp(inputTeclado + inputBotones, -1f, 1f);
 
-        // Suavizar el derrape actual hacia el objetivo
+        // Suavizar derrape
         driftVelocity.x = Mathf.Lerp(driftVelocity.x, targetDriftSpeedX, Time.deltaTime * suavizadoDerrape);
 
-        // Velocidad neta horizontal
+        // Velocidad neta
         float netSpeedX = horizontal * velocidadMovimiento + driftVelocity.x;
 
         // Aplicar movimiento
         Vector2 mov = new Vector2(netSpeedX * Time.deltaTime, 0f);
         autoRect.anchoredPosition += mov;
 
-        // Rotación del coche según el movimiento neto
+        // Limitar dentro del panel
+        RectTransform panelRect = (RectTransform)autoRect.parent; // El panel contenedor
+        float panelHalfWidth = panelRect.rect.width / 2f;
+        float carHalfWidth = autoRect.rect.width / 2f;
+        float minX = -panelHalfWidth + carHalfWidth;
+        float maxX = panelHalfWidth - carHalfWidth;
+
+        Vector2 pos = autoRect.anchoredPosition;
+        pos.x = Mathf.Clamp(pos.x, minX, maxX);
+        autoRect.anchoredPosition = pos;
+
+        // Rotación
         float maxSpeed = velocidadMovimiento + intensidadDerrape;
         float factor = Mathf.Clamp(netSpeedX / maxSpeed, -1f, 1f);
-        float targetRot = -factor * maxAnguloRotacion; // negativo para que gire visualmente hacia la dirección
-
+        float targetRot = -factor * maxAnguloRotacion;
         Quaternion rotActual = autoRect.localRotation;
         Quaternion rotObjetivo = Quaternion.Euler(0f, 0f, targetRot);
         autoRect.localRotation = Quaternion.Slerp(rotActual, rotObjetivo, Time.deltaTime * velocidadRotacion);
 
+        // Temporizador
         tiempoActual -= Time.deltaTime;
         textoTiempo.text = Mathf.CeilToInt(tiempoActual).ToString();
 
         if (tiempoActual <= 0f)
         {
-            TerminarMinijuego(true); // true = sobrevivió
+            TerminarMinijuego(true);
+        }
+    }
+
+    // ----- MÉTODO DE REINICIO -----
+    public void ReiniciarMinijuego()
+    {
+        juegoTerminado = false;
+        vidas = imagenesVida.Count;
+        tiempoActual = tiempoLimite;
+
+        // UI y Textos
+        ActualizarUI();
+        if (textoTiempo != null) textoTiempo.text = Mathf.CeilToInt(tiempoActual).ToString();
+
+        // Reset de posición y rotación del coche
+        if (autoRect != null)
+        {
+            autoRect.anchoredPosition = posicionInicialAuto;
+            autoRect.localRotation = Quaternion.identity;
         }
 
+        // Reset de físicas/controles de borrachera
+        driftVelocity = Vector2.zero;
+        targetDriftSpeedX = 0f;
+        botonIzquierdaPresionado = false;
+        botonDerechaPresionado = false;
+
+        // Limpiar pantalla y reconstruir la cola del Pool de obstáculos
+        poolObstaculos.Clear();
+        foreach (RectTransform obs in todosLosObstaculos)
+        {
+            if (obs != null)
+            {
+                obs.gameObject.SetActive(false);
+                poolObstaculos.Enqueue(obs);
+            }
+        }
+
+        // Volver a encender las corrutinas base (se pausarán solas si el panel está desactivado)
+        StopAllCoroutines();
+        StartCoroutine(SpawnearObstaculos());
+        if (usarConduccionBorracha)
+            StartCoroutine(RutinaDerrape());
     }
 
     IEnumerator RutinaDerrape()
@@ -140,6 +192,7 @@ public class DrunkDrivingManager : MonoBehaviour
             targetDriftSpeedX = Random.Range(-intensidadDerrape, intensidadDerrape);
         }
     }
+
     IEnumerator SpawnearObstaculos()
     {
         while (!juegoTerminado)
@@ -172,13 +225,14 @@ public class DrunkDrivingManager : MonoBehaviour
         if (poolObstaculos.Count > 0)
             return poolObstaculos.Dequeue();
         else
-            return null; // Podrías instanciar más si quieres
+            return null;
     }
 
     public void DevolverObstaculo(RectTransform obs)
     {
         obs.gameObject.SetActive(false);
-        poolObstaculos.Enqueue(obs);
+        if (!poolObstaculos.Contains(obs)) // Evitar duplicados en colas por choques raros
+            poolObstaculos.Enqueue(obs);
     }
 
     public void PerderVida()
@@ -201,14 +255,18 @@ public class DrunkDrivingManager : MonoBehaviour
 
     void ActualizarUI()
     {
-        // Activar/desactivar imágenes de vida
         for (int i = 0; i < imagenesVida.Count; i++)
         {
             imagenesVida[i].enabled = i < vidas;
         }
     }
 
-    // Método para comprobar superposición de dos RectTransform (AABB básico)
+    // ----- BOTONES UI -----
+    public void PresionarIzquierda() { botonIzquierdaPresionado = true; }
+    public void SoltarIzquierda() { botonIzquierdaPresionado = false; }
+    public void PresionarDerecha() { botonDerechaPresionado = true; }
+    public void SoltarDerecha() { botonDerechaPresionado = false; }
+
     public bool RectOverlaps(RectTransform a, RectTransform b)
     {
         Vector3[] cornersA = new Vector3[4];
@@ -229,9 +287,14 @@ public class DrunkDrivingManager : MonoBehaviour
 
         // Desactivar minijuego
         panelEsteMinijuego.SetActive(false);
+
+        // << CAMBIO AQUÍ >>: Reseteamos todo inmediatamente al apagar el panel
+        ReiniciarMinijuego();
+
         // Mostrar divergencia
         panelDivergencia.SetActive(true);
 
+        // Iniciamos la transición (esta corrutina no se cancelará porque se llama DESPUÉS del ReiniciarMinijuego)
         StartCoroutine(Transicion(sobrevivio));
     }
 

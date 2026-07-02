@@ -1,4 +1,4 @@
-using UnityEngine;
+Ôªøusing UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System.Collections;
@@ -11,80 +11,87 @@ public class DormirseManager : MonoBehaviour
     [Header("Player UI")]
     public RectTransform playerImagen;
 
-    [Header("BotÛn Despertar")]
+    [Header("Bot√≥n Despertar")]
     public Button botonDespertar;
 
     [Header("Texto")]
     public TextMeshProUGUI textoPorcentaje;
     public TextMeshProUGUI textoResultado;
 
-    [Header("Overlay SueÒo")]
-    public Image imagenSueÒo;
+    [Header("Overlay Sue√±o")]
+    public Image imagenSue√±o;
 
-    [Header("Paneles de transiciÛn")]
+    [Header("Paneles de transici√≥n")]
     public GameObject panelTransicion;
     public GameObject panelExito;
     public GameObject panelFracaso;
 
-    [Header("ConfiguraciÛn SueÒo")]
+    [Header("Configuraci√≥n Sue√±o")]
     [Range(0, 100)]
-    public float sueÒo = 0f;
+    public float sue√±o = 0f;
 
-    public float velocidadSueÒo = 10f;
-    public float reducciÛnPorClick = 8f;
+    public float velocidadSue√±o = 10f;
+    public float reducci√≥nPorClick = 8f;
 
-    [Header("RotaciÛn")]
+    [Header("Rotaci√≥n")]
     public float rotacionMaxima = 60f;
 
-    [Header("DuraciÛn")]
+    [Header("Duraci√≥n")]
     public float duracionMinijuego = 15f;
 
     private bool juegoTerminado = false;
+    private bool juegoIniciado = false;        // <-- NUEVA BANDERA
     private bool botonBloqueado = false;
+
+    void Start()
+    {
+        // No llamamos a ReiniciarMinijuego aqu√≠; lo haremos cuando el panel se active (ver Update)
+    }
 
     void Update()
     {
-
-        if (!panelEsteMinijuego.activeInHierarchy)
+        // Si el panel est√° activo y a√∫n no se ha iniciado el juego ‚Üí reiniciar e iniciar
+        if (panelEsteMinijuego.activeInHierarchy && !juegoIniciado)
+        {
+            ReiniciarMinijuego();
+            juegoIniciado = true;
             return;
+        }
 
-        if (juegoTerminado) return;
+        if (!panelEsteMinijuego.activeInHierarchy || juegoTerminado) return;
 
         // Tiempo del minijuego
         duracionMinijuego -= Time.deltaTime;
 
-        // El sueÒo aumenta constantemente
-        sueÒo += velocidadSueÒo * Time.deltaTime;
-
-        sueÒo = Mathf.Clamp(sueÒo, 0f, 100f);
+        // El sue√±o aumenta constantemente
+        sue√±o += velocidadSue√±o * Time.deltaTime;
+        sue√±o = Mathf.Clamp(sue√±o, 0f, 100f);
 
         // Actualizar texto
-        textoPorcentaje.text = "SueÒo: " + Mathf.RoundToInt(sueÒo) + "%";
+        textoPorcentaje.text = "Sue√±o: " + Mathf.RoundToInt(sue√±o) + "%";
 
-        // RotaciÛn del personaje
-        float rotZ = Mathf.Lerp(0f, -rotacionMaxima, sueÒo / 100f);
+        // Rotaci√≥n del personaje
+        float rotZ = Mathf.Lerp(0f, -rotacionMaxima, sue√±o / 100f);
         playerImagen.rotation = Quaternion.Euler(0f, 0f, rotZ);
 
-        // Overlay oscuro/transparente aparece despuÈs del 30%
-        if (sueÒo > 30f)
+        // Overlay oscuro/transparente aparece despu√©s del 30%
+        if (sue√±o > 30f)
         {
-            float alpha = Mathf.InverseLerp(30f, 100f, sueÒo);
-
-            Color color = imagenSueÒo.color;
+            float alpha = Mathf.InverseLerp(30f, 100f, sue√±o);
+            Color color = imagenSue√±o.color;
             color.a = alpha * 0.75f;
-
-            imagenSueÒo.color = color;
+            imagenSue√±o.color = color;
         }
 
-        // Si llega a 80% el botÛn deja de funcionar
-        if (sueÒo >= 80f)
+        // Si llega a 80% el bot√≥n deja de funcionar
+        if (sue√±o >= 80f)
         {
             botonBloqueado = true;
             botonDespertar.interactable = false;
         }
 
         // Pierde si llega a 100%
-        if (sueÒo >= 100f)
+        if (sue√±o >= 100f)
         {
             Perder();
         }
@@ -96,26 +103,52 @@ public class DormirseManager : MonoBehaviour
         }
     }
 
+    // ----- NUEVO M√âTODO DE REINICIO -----
+    public void ReiniciarMinijuego()
+    {
+        // Restablecer todos los valores a su estado inicial
+        sue√±o = 0f;
+        duracionMinijuego = 15f;
+        juegoTerminado = false;
+        botonBloqueado = false;
+
+        // Reactivar el bot√≥n
+        if (botonDespertar != null)
+            botonDespertar.interactable = true;
+
+        // Restablecer overlay (transparente)
+        if (imagenSue√±o != null)
+        {
+            Color color = imagenSue√±o.color;
+            color.a = 0f;
+            imagenSue√±o.color = color;
+        }
+
+        // Restablecer rotaci√≥n del jugador
+        if (playerImagen != null)
+            playerImagen.rotation = Quaternion.identity;
+
+        // Limpiar textos
+        if (textoPorcentaje != null)
+            textoPorcentaje.text = "Sue√±o: 0%";
+        if (textoResultado != null)
+            textoResultado.text = "";
+    }
+
     public void PresionarDespertar()
     {
         if (juegoTerminado) return;
-
         if (botonBloqueado) return;
 
-        sueÒo -= reducciÛnPorClick;
-
-        if (sueÒo < 0f)
-            sueÒo = 0f;
+        sue√±o -= reducci√≥nPorClick;
+        if (sue√±o < 0f)
+            sue√±o = 0f;
     }
 
     void Ganar()
     {
         juegoTerminado = true;
-
-        textoResultado.text = "°No te dormiste!";
-
-        sueÒo = 0f;
-
+        textoResultado.text = "¬°No te dormiste!";
         botonBloqueado = true;
         botonDespertar.interactable = false;
 
@@ -125,9 +158,7 @@ public class DormirseManager : MonoBehaviour
     void Perder()
     {
         juegoTerminado = true;
-
-        textoResultado.text = "°Te dormiste!";
-
+        textoResultado.text = "¬°Te dormiste!";
         botonBloqueado = true;
         botonDespertar.interactable = false;
 
@@ -139,13 +170,13 @@ public class DormirseManager : MonoBehaviour
         yield return new WaitForSeconds(1.5f);
 
         panelEsteMinijuego.SetActive(false);
+        juegoIniciado = false;                // <-- PERMITE REINICIAR LA PR√ìXIMA VEZ
+
+        // Ya no reseteamos valores aqu√≠, se har√° en ReiniciarMinijuego()
 
         panelTransicion.SetActive(true);
-
         yield return new WaitForSeconds(3f);
-
         panelTransicion.SetActive(false);
-
         siguientePanel.SetActive(true);
     }
 }

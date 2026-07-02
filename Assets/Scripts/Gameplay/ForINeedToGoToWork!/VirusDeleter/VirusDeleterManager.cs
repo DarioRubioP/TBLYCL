@@ -9,40 +9,40 @@ public class VirusDeleterManager : MonoBehaviour
     public static VirusDeleterManager Instancia;
 
     [Header("UI Principal – Minijuego")]
-    public GameObject panelEsteMinijuego;        // Panel raíz de TODO el minijuego
+    public GameObject panelEsteMinijuego;
     public GameObject panelDivergencia;
     public GameObject panelMinijuegoA;           // Victoria
     public GameObject panelMinijuegoB;           // Derrota
 
     [Header("Paneles de Secuencia Narrativa")]
-    public GameObject panelEscritorio;           // Jugador en el escritorio, jefe detrás
-    public GameObject panelComputadora;          // Vista frontal de la computadora
-    public GameObject panelJuego;                // Pantalla con icono antivirus y popups
+    public GameObject panelEscritorio;
+    public GameObject panelComputadora;
+    public GameObject panelJuego;
     public float retrasoEscritorioAComputadora = 3f;
     public float retrasoComputadoraAJuego = 2f;
 
     [Header("Antivirus y Paneles de Confirmación")]
-    public GameObject panelAntivirus;            // "¿Eliminar virus? Sí / No"
-    public GameObject panelConfirmacion1;        // Segundo panel: "¿Seguro? Sí / No"
-    public GameObject panelConfirmacion2;        // Tercer panel: "¿Última oportunidad? Sí / No"
-    public GameObject panelFelicitacion;         // Panel final de éxito
+    public GameObject panelAntivirus;
+    public GameObject panelConfirmacion1;
+    public GameObject panelConfirmacion2;
+    public GameObject panelFelicitacion;
 
     [Header("Pop‑ups")]
-    public RectTransform popupPrefab;            // Prefab de pop‑up (debe tener botón para cerrar)
-    public Transform[] puntosSpawnPopups;        // Posiciones posibles (RectTransforms vacíos)
+    public RectTransform popupPrefab;
+    public Transform[] puntosSpawnPopups;
     public float intervaloMinSpawn = 1.0f;
     public float intervaloMaxSpawn = 3.0f;
     public int tamanoPoolPopups = 8;
 
     [Header("Tiempo")]
-    public float tiempoLimite = 45f;             // Tiempo total para completar la tarea
+    public float tiempoLimite = 45f;
     public TextMeshProUGUI textoTiempo;
 
     // Estado interno
     private bool juegoTerminado = false;
-    private bool juegoIniciado = false;          // ¿Está en curso el panel de juego?
+    private bool juegoIniciado = false;
     private float tiempoActual;
-    private bool antivirusAbierto = false;       // Para saber si ya se abrió el antivirus
+    private bool antivirusAbierto = false;
 
     // Pool de pop‑ups
     private Queue<RectTransform> poolPopups = new Queue<RectTransform>();
@@ -54,32 +54,27 @@ public class VirusDeleterManager : MonoBehaviour
 
     void Start()
     {
-        // Comenzar la secuencia narrativa
-        //StartCoroutine(SecuenciaNarrativa());
-        // Crear pool de popups
+        // Crear el pool inicial de popups (solo una vez)
         for (int i = 0; i < tamanoPoolPopups; i++)
         {
             RectTransform popup = Instantiate(popupPrefab, panelJuego.transform);
             popup.gameObject.SetActive(false);
             poolPopups.Enqueue(popup);
         }
-        tiempoActual = tiempoLimite;
-        ActualizarTextoTiempo();
     }
 
     void Update()
     {
-        //Si panelEsteMinijuego esta activo, comenzar secuencia narrativa
+        // Si el panel principal se activa y aún no se ha iniciado el juego → reiniciar y empezar
         if (panelEsteMinijuego.activeInHierarchy && !juegoIniciado)
         {
+            ReiniciarMinijuego();
             StartCoroutine(SecuenciaNarrativa());
+            return;
         }
 
-        // Solo ejecutamos lógica del juego si el panel de juego está activo y no ha terminado
+        // Si el panel de juego no está activo o el juego terminó, no hacemos nada
         if (!panelJuego.activeInHierarchy || juegoTerminado) return;
-
-        // Si no se ha iniciado aún (puede que se active el panel pero aún estemos en transición)
-        if (!juegoIniciado) return;
 
         // Temporizador
         tiempoActual -= Time.deltaTime;
@@ -87,32 +82,65 @@ public class VirusDeleterManager : MonoBehaviour
 
         if (tiempoActual <= 0f)
         {
-            TerminarMinijuego(false); // Derrota por tiempo
+            TerminarMinijuego(false);
+        }
+    }
+
+    // ----- NUEVO MÉTODO DE REINICIO -----
+    void ReiniciarMinijuego()
+    {
+        // Restablecer variables de estado
+        juegoTerminado = false;
+        juegoIniciado = false;              // Se pondrá true al final de la secuencia narrativa
+        antivirusAbierto = false;
+        tiempoActual = tiempoLimite;
+        ActualizarTextoTiempo();
+
+        // Desactivar todos los paneles internos
+        panelEscritorio.SetActive(false);
+        panelComputadora.SetActive(false);
+        panelJuego.SetActive(false);
+        panelAntivirus.SetActive(false);
+        panelConfirmacion1.SetActive(false);
+        panelConfirmacion2.SetActive(false);
+        panelFelicitacion.SetActive(false);
+
+        // Reciclar todos los popups activos y rehacer el pool
+        Popup[] popups = panelJuego.GetComponentsInChildren<Popup>(true);
+        foreach (Popup p in popups)
+        {
+            p.gameObject.SetActive(false);
+        }
+        poolPopups.Clear();
+        foreach (Popup p in popups)
+        {
+            RectTransform rt = p.GetComponent<RectTransform>();
+            if (rt != null) poolPopups.Enqueue(rt);
+        }
+        // Si faltan popups para completar el tamaño del pool, instanciar más
+        while (poolPopups.Count < tamanoPoolPopups)
+        {
+            RectTransform nuevo = Instantiate(popupPrefab, panelJuego.transform);
+            nuevo.gameObject.SetActive(false);
+            poolPopups.Enqueue(nuevo);
         }
     }
 
     // ---------- SECUENCIA NARRATIVA ----------
     IEnumerator SecuenciaNarrativa()
     {
-        // 1. Mostrar escritorio
         panelEscritorio.SetActive(true);
         yield return new WaitForSeconds(retrasoEscritorioAComputadora);
-        //panelEscritorio.SetActive(false);
 
-        // 2. Mostrar computadora
         panelComputadora.SetActive(true);
         yield return new WaitForSeconds(retrasoComputadoraAJuego);
-        //panelComputadora.SetActive(false);
 
-        // 3. Mostrar panel de juego e iniciar
         panelJuego.SetActive(true);
         juegoIniciado = true;
-        // Comenzar a spawnear pop‑ups
         StartCoroutine(SpawnearPopups());
     }
 
     // ---------- ANTIVIRUS Y CONFIRMACIONES ----------
-    // Se llama desde el botón del icono del antivirus
     public void AbrirAntivirus()
     {
         if (juegoTerminado || !panelJuego.activeInHierarchy) return;
@@ -120,41 +148,31 @@ public class VirusDeleterManager : MonoBehaviour
         panelAntivirus.SetActive(true);
     }
 
-    // Botón "Sí" en el primer panel
     public void ConfirmarAntivirus()
     {
-        //panelAntivirus.SetActive(false);
         panelConfirmacion1.SetActive(true);
     }
 
-    // Botón "No" en el primer panel
     public void CancelarAntivirus()
     {
         panelAntivirus.SetActive(false);
     }
 
-    // Botón "Sí" en el segundo panel
     public void ConfirmarSegundo()
     {
-        //panelConfirmacion1.SetActive(false);
         panelConfirmacion2.SetActive(true);
     }
 
-    // Botón "No" en el segundo panel
     public void CancelarSegundo()
     {
         panelConfirmacion1.SetActive(false);
     }
 
-    // Botón "Sí" en el tercer panel
     public void ConfirmarTercero()
     {
-        //panelConfirmacion2.SetActive(false);
-        // ¡Éxito!
         MostrarFelicitacion();
     }
 
-    // Botón "No" en el tercer panel
     public void CancelarTercero()
     {
         panelConfirmacion2.SetActive(false);
@@ -164,16 +182,14 @@ public class VirusDeleterManager : MonoBehaviour
     void MostrarFelicitacion()
     {
         juegoIniciado = false;
-        // Desactivar pop‑ups (la corrutina se detendrá con juegoTerminado)
         panelFelicitacion.SetActive(true);
-        // Pequeña pausa para disfrutar la felicitación y luego terminar
         StartCoroutine(FinalizarConExito());
     }
 
     IEnumerator FinalizarConExito()
     {
         yield return new WaitForSeconds(2f);
-        TerminarMinijuego(true); // Victoria
+        TerminarMinijuego(true);
     }
 
     // ---------- POP‑UPS ----------
@@ -181,7 +197,6 @@ public class VirusDeleterManager : MonoBehaviour
     {
         while (!juegoTerminado && panelJuego.activeInHierarchy)
         {
-            // Esperar mientras no esté activo el panel de juego
             while (!panelJuego.activeInHierarchy && !juegoTerminado)
                 yield return null;
 
@@ -190,17 +205,14 @@ public class VirusDeleterManager : MonoBehaviour
 
             if (juegoTerminado || !panelJuego.activeInHierarchy) continue;
 
-            // Obtener pop‑up del pool
             RectTransform popup = ObtenerPopupPool();
             if (popup != null)
             {
-                // Posición aleatoria
                 int indice = Random.Range(0, puntosSpawnPopups.Length);
                 popup.anchoredPosition = puntosSpawnPopups[indice].GetComponent<RectTransform>().anchoredPosition;
                 popup.localRotation = Quaternion.identity;
                 popup.gameObject.SetActive(true);
 
-                // Asignar el manager al script del pop‑up (si tiene)
                 Popup scriptPopup = popup.GetComponent<Popup>();
                 if (scriptPopup) scriptPopup.Inicializar(this);
             }
@@ -211,8 +223,7 @@ public class VirusDeleterManager : MonoBehaviour
     {
         if (poolPopups.Count > 0)
             return poolPopups.Dequeue();
-        else
-            return null; // Podrías instanciar uno extra si quieres
+        return null;
     }
 
     public void DevolverPopup(RectTransform popup)
@@ -221,7 +232,6 @@ public class VirusDeleterManager : MonoBehaviour
         poolPopups.Enqueue(popup);
     }
 
-    // ---------- UI AUXILIAR ----------
     void ActualizarTextoTiempo()
     {
         if (textoTiempo != null)
@@ -235,7 +245,7 @@ public class VirusDeleterManager : MonoBehaviour
         juegoIniciado = false;
         StopAllCoroutines();
 
-        // Ocultar todos los paneles internos
+        // Desactivar paneles internos (el panel principal se apagará luego)
         panelJuego.SetActive(false);
         panelAntivirus.SetActive(false);
         panelConfirmacion1.SetActive(false);
@@ -262,7 +272,6 @@ public class VirusDeleterManager : MonoBehaviour
             panelMinijuegoB.SetActive(true);
     }
 
-    // Método público para que los pop‑ups puedan cerrarse a sí mismos
     public void CerrarPopup(GameObject popup)
     {
         RectTransform rt = popup.GetComponent<RectTransform>();
