@@ -39,9 +39,18 @@ public class DormirseManager : MonoBehaviour
     [Header("Duración")]
     public float duracionMinijuego = 15f;
 
+    [Header("Tutorial – Imagen con latido y desvanecimiento")]
+    public Image imageTutorial;                  // Asigná acá el componente Image de "ImageTutorial"
+    public float duracionAntesDeDesvanecer = 5f;  // Segundos que late antes de empezar a desaparecer
+    public float duracionDesvanecimiento = 1.5f;  // Duración del fade out
+    public float velocidadLatido = 2f;            // Velocidad del pulso (mayor = más rápido)
+    public float escalaMinima = 0.95f;
+    public float escalaMaxima = 1.05f;
+
     private bool juegoTerminado = false;
     private bool juegoIniciado = false;        // <-- NUEVA BANDERA
     private bool botonBloqueado = false;
+    private Coroutine corrutinaTutorial;
 
     void Start()
     {
@@ -55,6 +64,7 @@ public class DormirseManager : MonoBehaviour
         {
             ReiniciarMinijuego();
             juegoIniciado = true;
+            MostrarTutorial();
             return;
         }
 
@@ -135,6 +145,64 @@ public class DormirseManager : MonoBehaviour
             textoResultado.text = "";
     }
 
+    // ---------- TUTORIAL: LATIDO Y DESVANECIMIENTO ----------
+    public void MostrarTutorial()
+    {
+        if (imageTutorial == null) return;
+
+        if (corrutinaTutorial != null)
+            StopCoroutine(corrutinaTutorial);
+
+        imageTutorial.gameObject.SetActive(true);
+        Color c = imageTutorial.color;
+        c.a = 1f;
+        imageTutorial.color = c;
+        imageTutorial.rectTransform.localScale = Vector3.one;
+
+        corrutinaTutorial = StartCoroutine(AnimarTutorial());
+    }
+
+    IEnumerator AnimarTutorial()
+    {
+        float tiempoTranscurrido = 0f;
+        Color colorOriginal = imageTutorial.color;
+        colorOriginal.a = 1f;
+
+        // Fase 1: latido suave durante "duracionAntesDeDesvanecer" segundos
+        while (tiempoTranscurrido < duracionAntesDeDesvanecer)
+        {
+            float t = (Mathf.Sin(tiempoTranscurrido * velocidadLatido) + 1f) / 2f; // 0..1
+            float escala = Mathf.Lerp(escalaMinima, escalaMaxima, t);
+            imageTutorial.rectTransform.localScale = Vector3.one * escala;
+
+            tiempoTranscurrido += Time.deltaTime;
+            yield return null;
+        }
+
+        // Fase 2: desvanecimiento suave, manteniendo el latido mientras se apaga
+        float tiempoFade = 0f;
+        while (tiempoFade < duracionDesvanecimiento)
+        {
+            float t = (Mathf.Sin(tiempoTranscurrido * velocidadLatido) + 1f) / 2f;
+            float escala = Mathf.Lerp(escalaMinima, escalaMaxima, t);
+            imageTutorial.rectTransform.localScale = Vector3.one * escala;
+
+            Color c = colorOriginal;
+            c.a = Mathf.Lerp(1f, 0f, tiempoFade / duracionDesvanecimiento);
+            imageTutorial.color = c;
+
+            tiempoFade += Time.deltaTime;
+            tiempoTranscurrido += Time.deltaTime;
+            yield return null;
+        }
+
+        Color cFinal = colorOriginal;
+        cFinal.a = 0f;
+        imageTutorial.color = cFinal;
+        imageTutorial.gameObject.SetActive(false);
+        corrutinaTutorial = null;
+    }
+
     public void PresionarDespertar()
     {
         if (juegoTerminado) return;
@@ -173,6 +241,14 @@ public class DormirseManager : MonoBehaviour
         juegoIniciado = false;                // <-- PERMITE REINICIAR LA PRÓXIMA VEZ
 
         // Ya no reseteamos valores aquí, se hará en ReiniciarMinijuego()
+
+        // Apagamos y reseteamos la imagen de tutorial por si quedó a mitad de la animación
+        if (corrutinaTutorial != null)
+        {
+            StopCoroutine(corrutinaTutorial);
+            corrutinaTutorial = null;
+        }
+        if (imageTutorial != null) imageTutorial.gameObject.SetActive(false);
 
         panelTransicion.SetActive(true);
         yield return new WaitForSeconds(3f);

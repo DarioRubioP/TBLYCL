@@ -51,11 +51,20 @@ public class DrunkDrivingManager : MonoBehaviour
     private List<RectTransform> todosLosObstaculos = new List<RectTransform>(); // Lista fija para rastrear y resetear el pool
     public int tamanoPool = 10;
 
+    [Header("Tutorial – Imagen con latido y desvanecimiento")]
+    public Image imageTutorial;                  // Asigná acá el componente Image de "ImageTutorial"
+    public float duracionAntesDeDesvanecer = 5f;  // Segundos que late antes de empezar a desaparecer
+    public float duracionDesvanecimiento = 1.5f;  // Duración del fade out
+    public float velocidadLatido = 2f;            // Velocidad del pulso (mayor = más rápido)
+    public float escalaMinima = 0.95f;
+    public float escalaMaxima = 1.05f;
+
     // Estado
     private int vidas;
     private bool juegoTerminado = false;
     private float tiempoActual;
     private Vector2 posicionInicialAuto;
+    private Coroutine corrutinaTutorial;
 
     // Input de botones UI
     private bool botonIzquierdaPresionado = false;
@@ -171,9 +180,71 @@ public class DrunkDrivingManager : MonoBehaviour
 
         // Volver a encender las corrutinas base (se pausarán solas si el panel está desactivado)
         StopAllCoroutines();
+        corrutinaTutorial = null; // StopAllCoroutines ya detuvo la corrutina del tutorial, si había una
         StartCoroutine(SpawnearObstaculos());
         if (usarConduccionBorracha)
             StartCoroutine(RutinaDerrape());
+
+        // Muestra el tutorial con latido y luego lo desvanece
+        MostrarTutorial();
+    }
+
+    // ---------- TUTORIAL: LATIDO Y DESVANECIMIENTO ----------
+    public void MostrarTutorial()
+    {
+        if (imageTutorial == null) return;
+
+        if (corrutinaTutorial != null)
+            StopCoroutine(corrutinaTutorial);
+
+        imageTutorial.gameObject.SetActive(true);
+        Color c = imageTutorial.color;
+        c.a = 1f;
+        imageTutorial.color = c;
+        imageTutorial.rectTransform.localScale = Vector3.one;
+
+        corrutinaTutorial = StartCoroutine(AnimarTutorial());
+    }
+
+    IEnumerator AnimarTutorial()
+    {
+        float tiempoTranscurrido = 0f;
+        Color colorOriginal = imageTutorial.color;
+        colorOriginal.a = 1f;
+
+        // Fase 1: latido suave durante "duracionAntesDeDesvanecer" segundos
+        while (tiempoTranscurrido < duracionAntesDeDesvanecer)
+        {
+            float t = (Mathf.Sin(tiempoTranscurrido * velocidadLatido) + 1f) / 2f; // 0..1
+            float escala = Mathf.Lerp(escalaMinima, escalaMaxima, t);
+            imageTutorial.rectTransform.localScale = Vector3.one * escala;
+
+            tiempoTranscurrido += Time.deltaTime;
+            yield return null;
+        }
+
+        // Fase 2: desvanecimiento suave, manteniendo el latido mientras se apaga
+        float tiempoFade = 0f;
+        while (tiempoFade < duracionDesvanecimiento)
+        {
+            float t = (Mathf.Sin(tiempoTranscurrido * velocidadLatido) + 1f) / 2f;
+            float escala = Mathf.Lerp(escalaMinima, escalaMaxima, t);
+            imageTutorial.rectTransform.localScale = Vector3.one * escala;
+
+            Color c = colorOriginal;
+            c.a = Mathf.Lerp(1f, 0f, tiempoFade / duracionDesvanecimiento);
+            imageTutorial.color = c;
+
+            tiempoFade += Time.deltaTime;
+            tiempoTranscurrido += Time.deltaTime;
+            yield return null;
+        }
+
+        Color cFinal = colorOriginal;
+        cFinal.a = 0f;
+        imageTutorial.color = cFinal;
+        imageTutorial.gameObject.SetActive(false);
+        corrutinaTutorial = null;
     }
 
     IEnumerator RutinaDerrape()
@@ -284,6 +355,7 @@ public class DrunkDrivingManager : MonoBehaviour
     {
         juegoTerminado = true;
         StopAllCoroutines();
+        corrutinaTutorial = null; // StopAllCoroutines ya detuvo la corrutina del tutorial
 
         // Desactivar minijuego
         panelEsteMinijuego.SetActive(false);

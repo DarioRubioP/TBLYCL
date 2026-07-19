@@ -7,17 +7,19 @@ public class MenuManager : MonoBehaviour
     [Header("Paneles")]
     public GameObject menuPanel;
     public GameObject guiPanel; 
-    public GameObject opcionesPanel;
+    //public GameObject opcionesPanel;
+    public GameObject ADsPanel;
     public GameObject salirPanel;
 
     [Header("Botones del Menú Principal")]
     public Button botonJugar;
-    public Button botonOpciones;
+    //public Button botonOpciones;
+    public Button botonADs;
     public Button botonSalir;
 
     [Header("Botones de Opciones")]
-    public Button botonAplicar;
-    public Button botonRegresarMenu;
+    //public Button botonAplicar;
+    //public Button botonRegresarMenu;
 
     [Header("Botones de Confirmación")]
     public Button botonConfirmarSalir;
@@ -35,17 +37,12 @@ public class MenuManager : MonoBehaviour
         if (botonJugar != null)
             botonJugar.onClick.AddListener(Jugar);
 
-        if (botonOpciones != null)
-            botonOpciones.onClick.AddListener(AbrirOpciones);
+        if (botonADs != null)
+            botonADs.onClick.AddListener(AbrirADs);
+        
 
         if (botonSalir != null)
             botonSalir.onClick.AddListener(AbrirConfirmacionSalir);
-
-        if (botonAplicar != null)
-            botonAplicar.onClick.AddListener(AplicarOpciones);
-
-        if (botonRegresarMenu != null)
-            botonRegresarMenu.onClick.AddListener(RegresarAlMenu);
 
         if (botonConfirmarSalir != null)
             botonConfirmarSalir.onClick.AddListener(SalirDelJuego);
@@ -58,7 +55,6 @@ public class MenuManager : MonoBehaviour
     {
         menuPanel.SetActive(true);
         guiPanel.SetActive(false);
-        opcionesPanel.SetActive(false);
         salirPanel.SetActive(false);
     }
 
@@ -70,10 +66,10 @@ public class MenuManager : MonoBehaviour
 
     }
 
-    void AbrirOpciones()
+    void AbrirADs()
     {
-        opcionesPanel.SetActive(true);
-        Debug.Log("Panel de opciones abierto");
+        ADsPanel.SetActive(true);
+        Debug.Log("Funcionalidad de anuncios (pendiente)");
     }
 
     void AplicarOpciones()
@@ -83,7 +79,7 @@ public class MenuManager : MonoBehaviour
 
     void RegresarAlMenu()
     {
-        opcionesPanel.SetActive(false);
+        //opcionesPanel.SetActive(false);
         Debug.Log("Regresando al menú principal");
     }
 
@@ -105,5 +101,17 @@ public class MenuManager : MonoBehaviour
         //salir del juego
         Application.Quit();
 
+    }
+
+    public void ResetScener()
+    {
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        Debug.Log("Reiniciando escena...");
+    }
+
+    public void ChangeSceneToNoADs()
+    {
+        SceneManager.LoadScene("NoADs");
+        Debug.Log("Cambiando a la escena NoADs...");
     }
 }

@@ -56,6 +56,14 @@ public class SacudirMaquinaManager : MonoBehaviour
     public float intensidadSacudida = 10f;
     public float velocidadSacudida = 40f;
 
+    [Header("Tutorial – Imagen con latido y desvanecimiento")]
+    public Image imageTutorial;                  // Asigná acá el componente Image de "ImageTutorial"
+    public float duracionAntesDeDesvanecer = 5f;  // Segundos que late antes de empezar a desaparecer
+    public float duracionDesvanecimiento = 1.5f;  // Duración del fade out
+    public float velocidadLatido = 2f;            // Velocidad del pulso (mayor = más rápido)
+    public float escalaMinima = 0.95f;
+    public float escalaMaxima = 1.05f;
+
     private bool juegoTerminado = false;
 
     private bool jefeEstaMirando = false;
@@ -64,6 +72,8 @@ public class SacudirMaquinaManager : MonoBehaviour
     private float timerCoyote = 0f;
 
     private Vector2 posicionOriginalMaquina;
+    private Coroutine corrutinaTutorial;
+    private bool panelEstabaActivo = false; // <-- NUEVO: para detectar cuándo se enciende el panel
 
     void Start()
     {
@@ -75,7 +85,16 @@ public class SacudirMaquinaManager : MonoBehaviour
 
     void Update()
     {
-        if (!panelEsteMinijuego.activeInHierarchy)
+        bool panelActivoAhora = panelEsteMinijuego.activeInHierarchy;
+
+        // --- DETECCIÓN DE ENCENDIDO: muestra el tutorial cada vez que el panel se activa ---
+        if (panelActivoAhora && !panelEstabaActivo)
+        {
+            MostrarTutorial();
+        }
+        panelEstabaActivo = panelActivoAhora;
+
+        if (!panelActivoAhora)
             return;
 
         if (juegoTerminado) return;
@@ -124,6 +143,64 @@ public class SacudirMaquinaManager : MonoBehaviour
 
         // JEFE
         ActualizarJefe(jugadorSacudiendo);
+    }
+
+    // ---------- TUTORIAL: LATIDO Y DESVANECIMIENTO ----------
+    public void MostrarTutorial()
+    {
+        if (imageTutorial == null) return;
+
+        if (corrutinaTutorial != null)
+            StopCoroutine(corrutinaTutorial);
+
+        imageTutorial.gameObject.SetActive(true);
+        Color c = imageTutorial.color;
+        c.a = 1f;
+        imageTutorial.color = c;
+        imageTutorial.rectTransform.localScale = Vector3.one;
+
+        corrutinaTutorial = StartCoroutine(AnimarTutorial());
+    }
+
+    IEnumerator AnimarTutorial()
+    {
+        float tiempoTranscurrido = 0f;
+        Color colorOriginal = imageTutorial.color;
+        colorOriginal.a = 1f;
+
+        // Fase 1: latido suave durante "duracionAntesDeDesvanecer" segundos
+        while (tiempoTranscurrido < duracionAntesDeDesvanecer)
+        {
+            float t = (Mathf.Sin(tiempoTranscurrido * velocidadLatido) + 1f) / 2f; // 0..1
+            float escala = Mathf.Lerp(escalaMinima, escalaMaxima, t);
+            imageTutorial.rectTransform.localScale = Vector3.one * escala;
+
+            tiempoTranscurrido += Time.deltaTime;
+            yield return null;
+        }
+
+        // Fase 2: desvanecimiento suave, manteniendo el latido mientras se apaga
+        float tiempoFade = 0f;
+        while (tiempoFade < duracionDesvanecimiento)
+        {
+            float t = (Mathf.Sin(tiempoTranscurrido * velocidadLatido) + 1f) / 2f;
+            float escala = Mathf.Lerp(escalaMinima, escalaMaxima, t);
+            imageTutorial.rectTransform.localScale = Vector3.one * escala;
+
+            Color c = colorOriginal;
+            c.a = Mathf.Lerp(1f, 0f, tiempoFade / duracionDesvanecimiento);
+            imageTutorial.color = c;
+
+            tiempoFade += Time.deltaTime;
+            tiempoTranscurrido += Time.deltaTime;
+            yield return null;
+        }
+
+        Color cFinal = colorOriginal;
+        cFinal.a = 0f;
+        imageTutorial.color = cFinal;
+        imageTutorial.gameObject.SetActive(false);
+        corrutinaTutorial = null;
     }
 
     void PerderTiempo()
@@ -239,5 +316,16 @@ public class SacudirMaquinaManager : MonoBehaviour
         textoProgreso.text = "Progreso: 0%";
         textoTiempo.text = Mathf.CeilToInt(tiempoRestante).ToString();
         textoResultado.text = "";
+
+        // Apagamos y reseteamos la imagen de tutorial por si quedó a mitad de la animación
+        if (corrutinaTutorial != null)
+        {
+            StopCoroutine(corrutinaTutorial);
+            corrutinaTutorial = null;
+        }
+        if (imageTutorial != null) imageTutorial.gameObject.SetActive(false);
+
+        // panelEstabaActivo se pondrá en false cuando el panel se desactive (el próximo Update lo detecta),
+        // así el tutorial se volverá a mostrar la próxima vez que se active el panel.
     }
 }

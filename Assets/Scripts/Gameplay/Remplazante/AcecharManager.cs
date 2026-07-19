@@ -41,6 +41,14 @@ public class AcecharManager : MonoBehaviour
     public float tiempoLimite = 15f;
     public TextMeshProUGUI textoTiempo;
 
+    [Header("Tutorial – Imagen con latido y desvanecimiento")]
+    public Image imageTutorial;                  // Asigná acá el componente Image de "ImageTutorial"
+    public float duracionAntesDeDesvanecer = 5f;  // Segundos que late antes de empezar a desaparecer
+    public float duracionDesvanecimiento = 1.5f;  // Duración del fade out
+    public float velocidadLatido = 2f;            // Velocidad del pulso (mayor = más rápido)
+    public float escalaMinima = 0.95f;
+    public float escalaMaxima = 1.05f;
+
     // Estado interno
     private bool juegoTerminado = false;
     private bool juegoIniciado = false;
@@ -50,6 +58,7 @@ public class AcecharManager : MonoBehaviour
     private bool objetivoSospechando = false;   // true = compañero mirando
     private bool visto = false;                 // se activa si nos pillan moviéndonos
     private float coyoteTimer = 0f;
+    private Coroutine corrutinaTutorial;
 
     // --- NUEVAS VARIABLES PARA EL RESETEO ---
     private Vector2 posicionInicialJugador;
@@ -92,6 +101,7 @@ public class AcecharManager : MonoBehaviour
         {
             juegoIniciado = true;
             StartCoroutine(RutinaCambioCompanero());
+            MostrarTutorial();
         }
 
         if (!panelActivoAhora || juegoTerminado || !juegoIniciado) return;
@@ -168,6 +178,64 @@ public class AcecharManager : MonoBehaviour
         if (imagenAcercamiento != null) imagenAcercamiento.SetActive(moviendose);
     }
 
+    // ---------- TUTORIAL: LATIDO Y DESVANECIMIENTO ----------
+    public void MostrarTutorial()
+    {
+        if (imageTutorial == null) return;
+
+        if (corrutinaTutorial != null)
+            StopCoroutine(corrutinaTutorial);
+
+        imageTutorial.gameObject.SetActive(true);
+        Color c = imageTutorial.color;
+        c.a = 1f;
+        imageTutorial.color = c;
+        imageTutorial.rectTransform.localScale = Vector3.one;
+
+        corrutinaTutorial = StartCoroutine(AnimarTutorial());
+    }
+
+    IEnumerator AnimarTutorial()
+    {
+        float tiempoTranscurrido = 0f;
+        Color colorOriginal = imageTutorial.color;
+        colorOriginal.a = 1f;
+
+        // Fase 1: latido suave durante "duracionAntesDeDesvanecer" segundos
+        while (tiempoTranscurrido < duracionAntesDeDesvanecer)
+        {
+            float t = (Mathf.Sin(tiempoTranscurrido * velocidadLatido) + 1f) / 2f; // 0..1
+            float escala = Mathf.Lerp(escalaMinima, escalaMaxima, t);
+            imageTutorial.rectTransform.localScale = Vector3.one * escala;
+
+            tiempoTranscurrido += Time.deltaTime;
+            yield return null;
+        }
+
+        // Fase 2: desvanecimiento suave, manteniendo el latido mientras se apaga
+        float tiempoFade = 0f;
+        while (tiempoFade < duracionDesvanecimiento)
+        {
+            float t = (Mathf.Sin(tiempoTranscurrido * velocidadLatido) + 1f) / 2f;
+            float escala = Mathf.Lerp(escalaMinima, escalaMaxima, t);
+            imageTutorial.rectTransform.localScale = Vector3.one * escala;
+
+            Color c = colorOriginal;
+            c.a = Mathf.Lerp(1f, 0f, tiempoFade / duracionDesvanecimiento);
+            imageTutorial.color = c;
+
+            tiempoFade += Time.deltaTime;
+            tiempoTranscurrido += Time.deltaTime;
+            yield return null;
+        }
+
+        Color cFinal = colorOriginal;
+        cFinal.a = 0f;
+        imageTutorial.color = cFinal;
+        imageTutorial.gameObject.SetActive(false);
+        corrutinaTutorial = null;
+    }
+
     // ---------- RUTINA DEL COMPAÑERO ----------
     IEnumerator RutinaCambioCompanero()
     {
@@ -239,6 +307,7 @@ public class AcecharManager : MonoBehaviour
         juegoTerminado = true;
         juegoIniciado = false;
         StopAllCoroutines(); // Detenemos la rutina del compañero y cualquier otra activa
+        corrutinaTutorial = null; // StopAllCoroutines ya detuvo la corrutina del tutorial
 
         // Apagar imágenes por seguridad (el reseteo las volverá a ordenar en el próximo frame)
         if (jugadorContenedor != null) jugadorContenedor.gameObject.SetActive(false);
@@ -247,6 +316,7 @@ public class AcecharManager : MonoBehaviour
         if (imagenGolpe != null) imagenGolpe.SetActive(false);
         if (imagenCaida != null) imagenCaida.SetActive(false);
         if (imagenRemplazo != null) imagenRemplazo.SetActive(false);
+        if (imageTutorial != null) imageTutorial.gameObject.SetActive(false);
 
         panelEsteMinijuego.SetActive(false);
         panelDivergencia.SetActive(true);
@@ -300,5 +370,13 @@ public class AcecharManager : MonoBehaviour
         if (imagenGolpe != null) imagenGolpe.SetActive(false);
         if (imagenCaida != null) imagenCaida.SetActive(false);
         if (imagenRemplazo != null) imagenRemplazo.SetActive(false);
+
+        // 4. Apagar y resetear la imagen de tutorial por si quedó a mitad de la animación
+        if (corrutinaTutorial != null)
+        {
+            StopCoroutine(corrutinaTutorial);
+            corrutinaTutorial = null;
+        }
+        if (imageTutorial != null) imageTutorial.gameObject.SetActive(false);
     }
 }
